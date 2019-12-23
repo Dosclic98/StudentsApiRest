@@ -2,31 +2,40 @@ package dos.studente;
 
 import java.io.File;
 
-import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.json.JSONObject;
 import org.json.XML;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
 import org.json.JSONTokener;
 
-import org.json.*;
 import dos.studente.studExc.IllegalStudentException;
 import dos.studente.studExc.StudentAlreadyExistingException;
 import dos.studente.studExc.StudentNotExistingException;
 
 public class Studente {
+	private static String folderName = "studenti/";
+	
 	public final int id;
 	public String matricola;
 	public String nome;
@@ -65,7 +74,7 @@ public class Studente {
 	}
 	
 	public void loadStudent() throws IOException {
-		String fileName = genFileName();
+		String fileName = genFilePath();
 		JSONObject studJson = getStudentContent(fileName);
 		
 		this.matricola = studJson.getString(StudKey.MATRICOLA); 
@@ -77,18 +86,18 @@ public class Studente {
 	}
 	
 	public void saveNewJson() throws StudentAlreadyExistingException, IOException {
-		File tmpFile = new File(genFileName());
+		File tmpFile = new File(genFilePath());
 		if(!tmpFile.exists()) {
 			JSONObject studToWrite = studentToJsonObj();
-			writeStudentOnFile(genFileName(), studToWrite);
+			writeStudentOnFile(genFilePath(), studToWrite);
 		} else throw new StudentAlreadyExistingException();
 	}
 	
 	public void saveModJson() throws IOException, StudentNotExistingException {
-		File tmpFile = new File(genFileName());
+		File tmpFile = new File(genFilePath());
 		if(tmpFile.exists()) {
 			JSONObject studToWrite = studentToJsonObj();
-			writeStudentOnFile(genFileName(), studToWrite);
+			writeStudentOnFile(genFilePath(), studToWrite);
 		} else throw new StudentNotExistingException();
 	}
 	
@@ -99,14 +108,15 @@ public class Studente {
 
 	public String XMLDesc() {
 		JSONObject studJson = studentToJsonObj();
-		return XML.toString(studJson, "student");
+		return XML.toString(studJson, "studente");
 	}
 	
-	private String genFileName() {
+	private String genFilePath() {
 		Integer tmpId = id;
-		return tmpId + ".json";
+		return folderName + tmpId + ".json";
 	}
-	
+
+	/*	
 	private String getFileContent(String fileName) throws IOException {
 		File file = new File(fileName);
 		FileInputStream fis = new FileInputStream(file);
@@ -117,7 +127,7 @@ public class Studente {
 		
 		return str;
 	}
-	
+*/	
 	private JSONObject getStudentContent(String fileName) throws FileNotFoundException {
 		JSONTokener studFile = new JSONTokener(new FileReader(fileName));
 		return new JSONObject(studFile);
@@ -129,12 +139,12 @@ public class Studente {
 			throw new IllegalStudentException();
 		} else {
 			JSONObject stud = new JSONObject();
-			stud.append(StudKey.MATRICOLA, matricola);
-			stud.append(StudKey.NOME, nome);
-			stud.append(StudKey.COGNOME, cognome);
-			stud.append(StudKey.NASCITA, nascita.toString());
-			stud.append(StudKey.CDL, CDL);
-			stud.append(StudKey.ANNO, anno);
+			stud.put(StudKey.MATRICOLA, matricola);
+			stud.put(StudKey.NOME, nome);
+			stud.put(StudKey.COGNOME, cognome);
+			stud.put(StudKey.NASCITA, nascita.toString());
+			stud.put(StudKey.CDL, CDL);
+			stud.put(StudKey.ANNO, anno);
 			
 			return stud;
 		}
@@ -150,6 +160,61 @@ public class Studente {
 		wr.flush();
         wr.close();
 
+	}
+	
+	public static int gestNextId() {
+		List<String> result = getListOfFiles();
+		int arrId[];
+		if(result != null) {
+			if(result.isEmpty()) return 1;
+			arrId = getSortedArrOfId(result);
+			
+			return arrId[arrId.length - 1] + 1;
+		}
+		else return 0;
+	}
+	
+	private static List<String> getListOfFiles() {
+		List<String> result = null;
+		try (Stream<Path> walk = Files.walk(Paths.get(folderName))) {
+
+			result = walk.filter(Files::isRegularFile)
+					.map(x -> x.toString()).collect(Collectors.toList());
+
+			result.forEach(System.out::println);
+
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		
+		return result;
+	}
+	
+	private static int[] getSortedArrOfId(List<String> res) {
+		String rgx = folderName + "(\\d+).json";
+				
+		Pattern pattern = Pattern.compile(rgx);
+		Matcher matcher = null;
+
+		ArrayList<Integer> arrListId = new ArrayList<Integer>();
+		
+		for(String fileName : res) {
+			matcher = pattern.matcher(fileName);
+			if(matcher.find()) {
+				arrListId.add(Integer.parseInt(matcher.group(1)));
+			}
+		}
+		
+		Collections.sort(arrListId);
+		arrListId.forEach(System.out::println);
+		
+		int[] arrId = new int[arrListId.size()]; 
+		
+		for(int i = 0; i < arrListId.size(); i++) {
+			arrId[i] = arrListId.get(i);
+		} 
+		
+		return arrId;
 	}
 
 }
