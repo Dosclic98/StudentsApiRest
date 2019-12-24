@@ -2,6 +2,7 @@ package dos.handler;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.time.format.DateTimeParseException;
 import java.util.regex.Matcher;
@@ -11,7 +12,6 @@ import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
-import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.json.JSONTokener;
@@ -42,50 +42,59 @@ public class RequestHandler implements HttpHandler {
 				Matcher matcher = parseAccept(headers);
 				resName = matcher.group(1);
 				resType = matcher.group(2);
-				if(resName.equals(resNameDB)) {
+				int newId = 0;
+				JSONObject stud = null;
+				if(resName.equals(resNameDB) && (resType.equals("json") || resType.equals("xml"))) {
 					if(resType.equals("json")) {
-						int newId = Studente.gestNextId();
-						JSONObject stud = getStudentFromRequest(he);
+						newId = Studente.gestNextId();
+						stud = getJsonStudentFromRequest(he);
 						
-						try {
-							if(stud != null && isValidStudent(stud)) {
-								System.out.println(newId);
-								System.out.println(stud.toString());
-								Studente studWr = new Studente(newId, stud);
-								System.out.println("QUI STUD");
-								studWr.saveNewJson();
-								
-								response = "Student added correctly\n";
-								resCode = 200;	
-							} else {
-								response = "Error: student format incorrect\n";
-								resCode = 404;
-							}
-						} catch (StudentAlreadyExistingException e) {
-							response = "Error: saving student\n";
-							resCode = 404;
-						} catch (JSONException er) {
+					} else if (resType.equals("xml")) {
+						newId = Studente.gestNextId();
+						stud = getXMLStudentFromRequest(he);
+						System.out.println(stud.toString());
+						// TODO Test della POST XML
+					}					
+					try {
+						if(stud != null && isValidStudent(stud)) {
+							System.out.println(newId);
+							System.out.println(stud.toString());
+							Studente studWr = new Studente(newId, stud);
+							System.out.println("QUI STUD");
+							studWr.saveNewJson();
+							
+							response = "Student added correctly\n";
+							resCode = 200;	
+						} else {
 							response = "Error: student format incorrect\n";
 							resCode = 404;
-						} catch (DateTimeParseException er1) {
-							response = "Error: unparsable date\n";
-							resCode = 404;							
 						}
-					} else if (resType.equals("xml")) {
-						
-						// TODO response = XML.toString(studsValid, "students");
-					} else {
-						response = "Error: Resource format not present\n";
+					} catch (StudentAlreadyExistingException e) {
+						response = "Error: saving student\n";
 						resCode = 404;
-					}	
-
-				} else {
+					} catch (JSONException er) {
+						response = "Error: student format incorrect\n";
+						resCode = 404;
+					} catch (DateTimeParseException er1) {
+						response = "Error: unparsable date\n";
+						resCode = 404;							
+					} catch(IllegalArgumentException er2) {
+						response = er2.getMessage();
+						resCode = 404;
+					}
+				} else if(!resName.equals(resNameDB)) {
 					response = "Error: Invalid resource requested\n";
 					resCode = 404;			
+				} else if(!resType.equals("json") && !resType.equals("xml")) {
+					response = "Error: Resource format not present\n";
+					resCode = 404;
 				}
 				
 			} catch (IllegalArgumentException e) {
 				response = "Error: Invalid Accept field\n";
+				resCode = 404;
+			} catch(JSONException e1) {
+				response = "Error: Invalid student inserted\n";
 				resCode = 404;
 			}
 			
@@ -112,7 +121,7 @@ public class RequestHandler implements HttpHandler {
 			
 	}
 	
-	private JSONObject getStudentFromRequest(HttpExchange he) {
+	private JSONObject getJsonStudentFromRequest(HttpExchange he) {
 		JSONObject studIn = null;
 		JSONTokener students = null;
 		
@@ -125,6 +134,23 @@ public class RequestHandler implements HttpHandler {
 			return null;
 		}
 		return studIn;
+		
+	}
+	
+	private JSONObject getXMLStudentFromRequest(HttpExchange he) {
+		JSONObject studIn = null;
+		
+		try {
+			InputStream in = he.getRequestBody();
+			studIn = XML.toJSONObject(new InputStreamReader(in));
+			
+		} catch(JSONException er) {
+			return null;
+		}
+		JSONObject studOut = studIn.getJSONObject("studente");
+		Integer matr = studOut.getInt(StudKey.MATRICOLA);
+		studOut.put(StudKey.MATRICOLA, matr.toString());
+		return studIn.getJSONObject("studente");
 		
 	}
 	

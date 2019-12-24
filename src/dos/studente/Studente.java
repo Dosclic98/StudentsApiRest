@@ -44,9 +44,26 @@ public class Studente {
 	public String CDL;
 	public int anno;
 	
+	public String nameSurnameRegex = "^[a-zA-Z]+([a-zA-Z ]*)$";
+	public String matrRegex = "^[0-9]+$";
+	public String CDLRegex = "^[a-zA-Z]+([a-zA-Z0-9 ]*)$";
 	
 	public Studente(int id, String matricola,  String nome, String cognome, 
 					LocalDate nascita, String CDL, int anno) {
+		if(!nome.matches(nameSurnameRegex)) {
+			throw new IllegalArgumentException("Error: Invalid name");
+		} 
+		if(!cognome.matches(nameSurnameRegex)) {
+			throw new IllegalArgumentException("Error: Invalid surname");
+		}
+		if(!matricola.matches(matrRegex)) {
+			throw new IllegalArgumentException("Error: Invalid matricola");
+		}
+		if(!CDL.matches(CDLRegex)) {
+			throw new IllegalArgumentException("Error: Invalid CDL");
+		}
+		if(anno <= 0 || anno > 5) throw new IllegalArgumentException("Error: Invalid year");
+		
 		this.id = id;
 		this.matricola = matricola;
 		this.nome = nome;
@@ -133,7 +150,7 @@ public class Studente {
 		return new JSONObject(studFile);
 	}
 	
-	private JSONObject studentToJsonObj() {
+	public JSONObject studentToJsonObj() {
 		if(id == 0 || matricola == null || nome == null || cognome == null ||
 		   nascita == null || CDL == null || anno == 0) {
 			throw new IllegalStudentException();
@@ -142,7 +159,7 @@ public class Studente {
 			stud.put(StudKey.MATRICOLA, matricola);
 			stud.put(StudKey.NOME, nome);
 			stud.put(StudKey.COGNOME, cognome);
-			stud.put(StudKey.NASCITA, nascita.toString());
+			stud.put(StudKey.NASCITA, nascita.format(DateTimeFormatter.ofPattern("dd-MM-yyyy")));
 			stud.put(StudKey.CDL, CDL);
 			stud.put(StudKey.ANNO, anno);
 			
@@ -159,7 +176,6 @@ public class Studente {
 		gsonFile.toJson(arr, wr);
 		wr.flush();
         wr.close();
-
 	}
 	
 	public static int gestNextId() {
