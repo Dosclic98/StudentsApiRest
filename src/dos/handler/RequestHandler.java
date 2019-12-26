@@ -102,7 +102,6 @@ public class RequestHandler implements HttpHandler {
 			}
 			
 		} else if(method.contentEquals("GET")) {
-			System.out.println("QUIii");
 			String resName = null;
 			String resType = null;
 
@@ -115,9 +114,14 @@ public class RequestHandler implements HttpHandler {
 					
 					stud = getQueryAsJson(he);
 					if(isValidStudentQuery(stud)) {
-						// System.out.println("\"" + StudKey.ANNO + "\":" + stud.getInt(StudKey.ANNO) + "");
-						ArrayList<Integer> ids = StudSearcher.searchListStud(stud);
+						ArrayList<Integer> ids = null;
 						ArrayList<Studente> valStuds = new ArrayList<Studente>();
+						if(stud.has(StudKey.ID)) {
+							ids = new ArrayList<Integer>();
+							ids.add(stud.getInt(StudKey.ID));
+						} else {
+							ids = StudSearcher.searchListStud(stud);
+						}
 						for(Integer id : ids) {
 							valStuds.add(0, new Studente(id));
 							valStuds.get(0).loadStudent();
@@ -131,10 +135,17 @@ public class RequestHandler implements HttpHandler {
 						
 						System.out.println("Valid studs: " + jsonStudentsArr.toString());
 						if(resType.equals("json")) {
-							// TODO Ritorna i dati in formato JSON
+							response = jsonStudentsArr.toString();
+							resCode = 200;
 						} else if (resType.equals("xml")) {
-							// TODO Ritorna i dati in formato XML
-						}						
+							response = XML.toString(jsonStudentsArr, "studente");
+							resCode = 200;
+						}
+						
+						if(ids.size() == 0) {
+							response = "No student found matching with search\n";
+							resCode = 404;
+						}
 					} else {
 						response = "Error: Invalid fields inserted\n";
 						resCode = 404;
@@ -156,6 +167,72 @@ public class RequestHandler implements HttpHandler {
 			} catch(NullPointerException e2) {
 				response = "Error: Query not inserted\n";
 				resCode = 404;				
+			} catch(IOException e3) {
+				response = "No student found matching with search\n";
+				resCode = 404;							
+			}
+			
+			
+		} else if(method.contentEquals("PUT")) {
+			String resName = null;
+			String resType = null;
+
+			try {
+				Matcher matcher = parseAccept(headers);
+				resName = matcher.group(1);
+				resType = matcher.group(2);
+				int newId = 0;
+				JSONObject stud = null;
+				if(resName.equals(resNameDB) && (resType.equals("json") || resType.equals("xml"))) {
+					if(resType.equals("json")) {
+						stud = getJsonStudentFromRequest(he);
+						
+					} else if (resType.equals("xml")) {
+						stud = getXMLStudentFromRequest(he);
+						System.out.println(stud.toString());
+					}					
+					try {
+						if(stud != null && isValidStudentMod(stud)) {
+							newId = stud.getInt(StudKey.ID);
+							System.out.println(stud.toString());
+							Studente studMod = new Studente(newId);
+							studMod.loadStudent();
+							// L'idea è creare un oggetto JSON dato lo studente
+							// modificarci i parametri da modificare e creare un
+							// nuovo studente a partire dall'oggetto JSON modificato
+							// e salvarlo su file
+							response = "Student modified correctly\n";
+							resCode = 200;	
+						} else {
+							response = "Error: student format incorrect\n";
+							resCode = 404;
+						}
+					// TODO Da aggiungere dopo il catch per StudentNotExistingException
+					//		e per IOException
+					} catch (JSONException er) {
+						response = "Error: student format incorrect\n";
+						resCode = 404;
+					} catch (DateTimeParseException er1) {
+						response = "Error: unparsable date\n";
+						resCode = 404;							
+					} catch(IllegalArgumentException er2) {
+						response = er2.getMessage();
+						resCode = 404;
+					}
+				} else if(!resName.equals(resNameDB)) {
+					response = "Error: Invalid resource requested\n";
+					resCode = 404;			
+				} else if(!resType.equals("json") && !resType.equals("xml")) {
+					response = "Error: Resource format not present\n";
+					resCode = 404;
+				}
+				
+			} catch (IllegalArgumentException e) {
+				response = "Error: Invalid Accept field\n";
+				resCode = 404;
+			} catch(JSONException e1) {
+				response = "Error: Invalid student inserted\n";
+				resCode = 404;
 			}
 			
 			
@@ -226,13 +303,20 @@ public class RequestHandler implements HttpHandler {
 				studInObj.has(StudKey.NASCITA) && studInObj.has(StudKey.CDL) && studInObj.has(StudKey.ANNO);
 	}
 	
+	private boolean isValidStudentMod(JSONObject studInObj) {
+		if(studInObj.has(StudKey.ID)) {
+			return studInObj.has(StudKey.MATRICOLA) || studInObj.has(StudKey.NOME) || studInObj.has(StudKey.COGNOME) ||
+					studInObj.has(StudKey.NASCITA) || studInObj.has(StudKey.CDL) || studInObj.has(StudKey.ANNO);
+		} else return false;
+	}
+	
 	private boolean isValidStudentQuery(JSONObject studInObj) {
 		Iterator<String> keysIter = studInObj.keys();
 		boolean isValid = true;
 		while(keysIter.hasNext() && isValid) {
 			String key = keysIter.next();
 			if(!key.equals(StudKey.MATRICOLA) && !key.equals(StudKey.NOME) && !key.equals(StudKey.COGNOME) &&
-			   !key.equals(StudKey.NASCITA) && !key.equals(StudKey.CDL) && !key.equals(StudKey.ANNO)) {
+			   !key.equals(StudKey.NASCITA) && !key.equals(StudKey.CDL) && !key.equals(StudKey.ANNO) && !key.equals(StudKey.ID)) {
 				isValid = false;
 			}
 		}
