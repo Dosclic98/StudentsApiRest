@@ -5,6 +5,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -13,6 +14,7 @@ import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.json.JSONTokener;
@@ -20,6 +22,7 @@ import org.json.XML;
 
 import dos.studente.StudKey;
 import dos.studente.Studente;
+import dos.studente.searcher.StudSearcher;
 import dos.studente.studExc.StudentAlreadyExistingException;
 
 public class RequestHandler implements HttpHandler {
@@ -107,14 +110,26 @@ public class RequestHandler implements HttpHandler {
 				Matcher matcher = parseAccept(headers);
 				resName = matcher.group(1);
 				resType = matcher.group(2);
-				int newId = 0;
 				JSONObject stud = null;
 				if(resName.equals(resNameDB) && (resType.equals("json") || resType.equals("xml"))) {
 					
 					stud = getQueryAsJson(he);
 					if(isValidStudentQuery(stud)) {
-						// Creare una classe che dato l'oggetto JSON
-						// ritorna un array di id di studenti che matchano
+						// System.out.println("\"" + StudKey.ANNO + "\":" + stud.getInt(StudKey.ANNO) + "");
+						ArrayList<Integer> ids = StudSearcher.searchListStud(stud);
+						ArrayList<Studente> valStuds = new ArrayList<Studente>();
+						for(Integer id : ids) {
+							valStuds.add(0, new Studente(id));
+							valStuds.get(0).loadStudent();
+						}
+						JSONArray jsonStudentsArr = new JSONArray();
+						for(Studente st : valStuds) {
+							JSONObject stJsonObj  = st.studentToJsonObj();
+							stJsonObj.put(StudKey.ID, st.id);
+							jsonStudentsArr.put(stJsonObj);
+						}
+						
+						System.out.println("Valid studs: " + jsonStudentsArr.toString());
 						if(resType.equals("json")) {
 							// TODO Ritorna i dati in formato JSON
 						} else if (resType.equals("xml")) {
@@ -153,8 +168,9 @@ public class RequestHandler implements HttpHandler {
 	
 	private JSONObject getQueryAsJson(HttpExchange he) {
 		String studentToParse = he.getRequestURI().getQuery();
+		System.out.println(studentToParse);
 
-		return new JSONObject(he.getRequestURI().getQuery());
+		return new JSONObject(studentToParse);
 	}
 	
 	private Matcher parseAccept(Headers hd) {
