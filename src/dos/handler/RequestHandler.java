@@ -7,6 +7,7 @@ import java.io.OutputStream;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -24,6 +25,7 @@ import dos.studente.StudKey;
 import dos.studente.Studente;
 import dos.studente.searcher.StudSearcher;
 import dos.studente.studExc.StudentAlreadyExistingException;
+import dos.studente.studExc.StudentNotExistingException;
 
 public class RequestHandler implements HttpHandler {
 	
@@ -118,7 +120,10 @@ public class RequestHandler implements HttpHandler {
 						ArrayList<Studente> valStuds = new ArrayList<Studente>();
 						if(stud.has(StudKey.ID)) {
 							ids = new ArrayList<Integer>();
-							ids.add(stud.getInt(StudKey.ID));
+							int qId = stud.getInt(StudKey.ID);
+							stud.remove(StudKey.ID);
+							ids = StudSearcher.searchListStud(stud);
+							removeUnmatchedId(qId, ids);
 						} else {
 							ids = StudSearcher.searchListStud(stud);
 						}
@@ -197,18 +202,22 @@ public class RequestHandler implements HttpHandler {
 							System.out.println(stud.toString());
 							Studente studMod = new Studente(newId);
 							studMod.loadStudent();
-							// L'idea è creare un oggetto JSON dato lo studente
-							// modificarci i parametri da modificare e creare un
-							// nuovo studente a partire dall'oggetto JSON modificato
-							// e salvarlo su file
+							JSONObject oldStud = studMod.studentToJsonObj();
+							modStud(oldStud, stud);
+							studMod = new Studente(newId, oldStud);
+							studMod.saveModJson();
 							response = "Student modified correctly\n";
 							resCode = 200;	
 						} else {
 							response = "Error: student format incorrect\n";
 							resCode = 404;
 						}
-					// TODO Da aggiungere dopo il catch per StudentNotExistingException
-					//		e per IOException
+					} catch (IOException e3) {
+						response = "Error: Unable to access resource";
+						resCode = 404;
+					} catch (StudentNotExistingException e) {
+						response = "Error: Tryig to modify a not existing student";
+						resCode = 404;
 					} catch (JSONException er) {
 						response = "Error: student format incorrect\n";
 						resCode = 404;
@@ -241,6 +250,38 @@ public class RequestHandler implements HttpHandler {
 		OutputStream outputStream = he.getResponseBody();
 		outputStream.write(response.getBytes());
 		outputStream.close();	
+	}
+	
+	private void modStud(JSONObject oldStud, JSONObject stud) {
+		Set<String> keys = stud.keySet();
+		for(String key : keys) {
+			if(key.equals(StudKey.MATRICOLA)) {
+				oldStud.put(StudKey.MATRICOLA, stud.get(StudKey.MATRICOLA));
+			} else if(key.equals(StudKey.NOME)) {
+				oldStud.put(StudKey.NOME, stud.get(StudKey.NOME));
+			} else if(key.equals(StudKey.COGNOME)) {
+				oldStud.put(StudKey.COGNOME, stud.get(StudKey.COGNOME));
+			} else if(key.equals(StudKey.NASCITA)) {
+				oldStud.put(StudKey.NASCITA, stud.get(StudKey.NASCITA));
+			} else if(key.equals(StudKey.CDL)) {
+				oldStud.put(StudKey.CDL, stud.get(StudKey.CDL));
+			} else if(key.equals(StudKey.ANNO)) {
+				oldStud.put(StudKey.ANNO, stud.get(StudKey.ANNO));
+			} 
+			else if(key.equals(StudKey.ID)) {
+				// Niente
+			} else {
+				throw new IllegalArgumentException("Error: unable to modify student");
+			}
+		}
+	}
+	
+	private void removeUnmatchedId(int qId, ArrayList<Integer> ids) {
+		for(int i = 0; i < ids.size(); i++) {
+			if(!ids.get(i).equals(qId)) {
+				ids.remove(i);
+			}
+		}
 	}
 	
 	private JSONObject getQueryAsJson(HttpExchange he) {
@@ -299,14 +340,38 @@ public class RequestHandler implements HttpHandler {
 	}
 	
 	private boolean isValidStudent(JSONObject studInObj) {
-		return studInObj.has(StudKey.MATRICOLA) && studInObj.has(StudKey.NOME) && studInObj.has(StudKey.COGNOME) &&
+		boolean hasAll = studInObj.has(StudKey.MATRICOLA) && studInObj.has(StudKey.NOME) && studInObj.has(StudKey.COGNOME) &&
 				studInObj.has(StudKey.NASCITA) && studInObj.has(StudKey.CDL) && studInObj.has(StudKey.ANNO);
+		Set<String> keys = studInObj.keySet();
+		boolean notHasDiff = true;
+		for(String key : keys) {
+			if(!key.equals(StudKey.MATRICOLA) && !key.equals(StudKey.NOME) && 
+					!key.equals(StudKey.COGNOME) && !key.equals(StudKey.NASCITA) && 
+					!key.equals(StudKey.CDL) && !key.equals(StudKey.ANNO)) {
+				notHasDiff = false;
+				break;
+			}
+		}
+		return hasAll && notHasDiff;
+		
 	}
 	
 	private boolean isValidStudentMod(JSONObject studInObj) {
 		if(studInObj.has(StudKey.ID)) {
-			return studInObj.has(StudKey.MATRICOLA) || studInObj.has(StudKey.NOME) || studInObj.has(StudKey.COGNOME) ||
+			boolean hasAtLeast = studInObj.has(StudKey.MATRICOLA) || studInObj.has(StudKey.NOME) || studInObj.has(StudKey.COGNOME) ||
 					studInObj.has(StudKey.NASCITA) || studInObj.has(StudKey.CDL) || studInObj.has(StudKey.ANNO);
+			Set<String> keys = studInObj.keySet();
+			boolean notHasDiff = true;
+			for(String key : keys) {
+				if(!key.equals(StudKey.MATRICOLA) && !key.equals(StudKey.NOME) && 
+						!key.equals(StudKey.COGNOME) && !key.equals(StudKey.NASCITA) && 
+						!key.equals(StudKey.CDL) && !key.equals(StudKey.ANNO) &&
+						!key.equals(StudKey.ID)) {
+					notHasDiff = false;
+					break;
+				}
+			}
+			return hasAtLeast && notHasDiff;
 		} else return false;
 	}
 	

@@ -128,6 +128,11 @@ public class Studente {
 		return XML.toString(studJson, "studente");
 	}
 	
+	public void delete() {
+		// TODO delete the student with the current id from the corresponding file
+		// 		and throws a studentNotFound exception if the student is not found on file
+	}
+	
 	private String genFilePath() {
 		Integer tmpId = id;
 		return folderName + tmpId + ".json";
