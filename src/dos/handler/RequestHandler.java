@@ -33,6 +33,8 @@ public class RequestHandler implements HttpHandler {
 	
 	@Override
 	public void handle(HttpExchange he) throws IOException {
+		System.out.println("\n****** Request recieved ******");
+		
 		Headers headers = he.getRequestHeaders();
 		String method = he.getRequestMethod();
 		
@@ -40,6 +42,7 @@ public class RequestHandler implements HttpHandler {
 		int resCode = 0;
 		
 		if(method.contentEquals("POST")) {
+			System.out.println("Method: POST");
 			String resName = null;
 			String resType = null;
 
@@ -57,15 +60,12 @@ public class RequestHandler implements HttpHandler {
 					} else if (resType.equals("xml")) {
 						newId = Studente.gestNextId();
 						stud = getXMLStudentFromRequest(he);
-						System.out.println(stud.toString());
 						// TODO Test della POST XML
 					}					
 					try {
 						if(stud != null && isValidStudent(stud)) {
-							System.out.println(newId);
 							System.out.println(stud.toString());
 							Studente studWr = new Studente(newId, stud);
-							System.out.println("QUI STUD");
 							studWr.saveNewJson();
 							
 							response = "Student added correctly\n";
@@ -104,6 +104,7 @@ public class RequestHandler implements HttpHandler {
 			}
 			
 		} else if(method.contentEquals("GET")) {
+			System.out.println("Method: GET");
 			String resName = null;
 			String resType = null;
 
@@ -115,6 +116,7 @@ public class RequestHandler implements HttpHandler {
 				if(resName.equals(resNameDB) && (resType.equals("json") || resType.equals("xml"))) {
 					
 					stud = getQueryAsJson(he);
+					System.out.println("Request query: " + stud.toString());
 					if(isValidStudentQuery(stud)) {
 						ArrayList<Integer> ids = null;
 						ArrayList<Studente> valStuds = new ArrayList<Studente>();
@@ -179,6 +181,7 @@ public class RequestHandler implements HttpHandler {
 			
 			
 		} else if(method.contentEquals("PUT")) {
+			System.out.println("Method: PUT");
 			String resName = null;
 			String resType = null;
 
@@ -194,12 +197,11 @@ public class RequestHandler implements HttpHandler {
 						
 					} else if (resType.equals("xml")) {
 						stud = getXMLStudentFromRequest(he);
-						System.out.println(stud.toString());
 					}					
 					try {
 						if(stud != null && isValidStudentMod(stud)) {
 							newId = stud.getInt(StudKey.ID);
-							System.out.println(stud.toString());
+							System.out.println("Request body: " + stud.toString());
 							Studente studMod = new Studente(newId);
 							studMod.loadStudent();
 							JSONObject oldStud = studMod.studentToJsonObj();
@@ -245,11 +247,85 @@ public class RequestHandler implements HttpHandler {
 			}
 			
 			
+		} else if(method.contentEquals("DELETE")) {
+			System.out.println("Method: DELETE");
+			String resName = null;
+			String resType = null;
+
+			try {
+				Matcher matcher = parseAccept(headers);
+				resName = matcher.group(1);
+				resType = matcher.group(2);
+				int newId = 0;
+				JSONObject stud = null;
+				if(resName.equals(resNameDB) && (resType.equals("json") || resType.equals("xml"))) {
+					if(resType.equals("json")) {
+						stud = getJsonStudentFromRequest(he);
+						
+					} else if (resType.equals("xml")) {
+						stud = getXMLStudentFromRequest(he);
+					}					
+					try {
+						if(stud != null && isValidStudentDel(stud)) {
+							newId = stud.getInt(StudKey.ID);
+							System.out.println("Request body: " + stud.toString());
+							Studente studDel = new Studente(newId);
+							// eliminare studente
+							studDel.delete();
+							response = "Student deleted correctly\n";
+							resCode = 200;	
+						} else {
+							response = "Error: student format incorrect\n";
+							resCode = 404;
+						}
+					} catch (IOException e3) {
+						response = "Error: Unable to delete resource (not existing)";
+						resCode = 404;
+					} catch (JSONException er) {
+						response = "Error: student format incorrect\n";
+						resCode = 404;
+					} catch (DateTimeParseException er1) {
+						response = "Error: unparsable date\n";
+						resCode = 404;							
+					} catch(IllegalArgumentException er2) {
+						response = er2.getMessage();
+						resCode = 404;
+					}
+				} else if(!resName.equals(resNameDB)) {
+					response = "Error: Invalid resource requested\n";
+					resCode = 404;			
+				} else if(!resType.equals("json") && !resType.equals("xml")) {
+					response = "Error: Resource format not present\n";
+					resCode = 404;
+				}
+				
+			} catch (IllegalArgumentException e) {
+				response = "Error: Invalid Accept field\n";
+				resCode = 404;
+			} catch(JSONException e1) {
+				response = "Error: Invalid student inserted\n";
+				resCode = 404;
+			} catch (Exception e2) {
+				e2.printStackTrace();
+			}
 		}		
+		System.out.println("Response code: " + resCode);
+		System.out.println("Response message: " + response);
+		
 		he.sendResponseHeaders(resCode, response.getBytes().length);
 		OutputStream outputStream = he.getResponseBody();
 		outputStream.write(response.getBytes());
 		outputStream.close();	
+	}
+	
+	private boolean isValidStudentDel(JSONObject stud) {
+		Set<String> keys = stud.keySet();
+		for(String key : keys) {
+			if(!key.equals(StudKey.ID)) {
+				return false;
+			}
+		}
+		return true;
 	}
 	
 	private void modStud(JSONObject oldStud, JSONObject stud) {
@@ -277,16 +353,16 @@ public class RequestHandler implements HttpHandler {
 	}
 	
 	private void removeUnmatchedId(int qId, ArrayList<Integer> ids) {
-		for(int i = 0; i < ids.size(); i++) {
+		int i = 0; 
+		while(i < ids.size()) {
 			if(!ids.get(i).equals(qId)) {
 				ids.remove(i);
-			}
+			} else i++;
 		}
 	}
 	
 	private JSONObject getQueryAsJson(HttpExchange he) {
 		String studentToParse = he.getRequestURI().getQuery();
-		System.out.println(studentToParse);
 
 		return new JSONObject(studentToParse);
 	}
@@ -295,7 +371,7 @@ public class RequestHandler implements HttpHandler {
 		String rgx = "application/(\\w+)\\+(\\w+)";
 		
 		String acceptToParseString = hd.getFirst("Accept");
-		System.out.println(acceptToParseString);
+		System.out.println("Accept: " + acceptToParseString);
 		
 		Pattern pattern = Pattern.compile(rgx);
 		Matcher matcher = pattern.matcher(acceptToParseString);
@@ -333,8 +409,10 @@ public class RequestHandler implements HttpHandler {
 			return null;
 		}
 		JSONObject studOut = studIn.getJSONObject("studente");
-		Integer matr = studOut.getInt(StudKey.MATRICOLA);
-		studOut.put(StudKey.MATRICOLA, matr.toString());
+		if(studOut.has(StudKey.MATRICOLA)) {
+			Integer matr = studOut.getInt(StudKey.MATRICOLA);
+			studOut.put(StudKey.MATRICOLA, matr.toString());			
+		}
 		return studIn.getJSONObject("studente");
 		
 	}

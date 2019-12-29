@@ -27,7 +27,7 @@ public class StudSearcher {
 			process.command("bash", "-c", cmd);
 			Process proc = process.start();
 
-			System.out.println(process.command().toString());
+			System.out.println("Search command: " + process.command().toString());
 			
 			BufferedReader reader = new BufferedReader(new InputStreamReader(proc.getInputStream()));
 			String line;

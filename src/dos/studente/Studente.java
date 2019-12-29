@@ -128,9 +128,16 @@ public class Studente {
 		return XML.toString(studJson, "studente");
 	}
 	
-	public void delete() {
+	public void delete() throws FileNotFoundException{
 		// TODO delete the student with the current id from the corresponding file
 		// 		and throws a studentNotFound exception if the student is not found on file
+		File f= new File(genFilePath());
+		if(f.delete()) {
+			System.out.println("File deleted correctly");
+		} else {
+			System.out.println("Error deleting file");
+			throw new FileNotFoundException();
+		}
 	}
 	
 	private String genFilePath() {
@@ -202,8 +209,6 @@ public class Studente {
 			result = walk.filter(Files::isRegularFile)
 					.map(x -> x.toString()).collect(Collectors.toList());
 
-			result.forEach(System.out::println);
-
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
@@ -227,7 +232,6 @@ public class Studente {
 		}
 		
 		Collections.sort(arrListId);
-		arrListId.forEach(System.out::println);
 		
 		int[] arrId = new int[arrListId.size()]; 
 		
